@@ -1,0 +1,17 @@
+[package]
+name    = "kawaii"
+version = "0.1.0-alpha"
+
+authors = ["meh. <meh@schizofreni.co>"]
+license = "WTFPL"
+
+description = "Better pretty printing."
+repository  = "https://github.com/meh/rust-kawaii"
+keywords    = ["pretty", "kawaii", "print", "debug"]
+
+[dependencies]
+ansi_term = "0.10"
+typemap = "0.3"
+
+[features]
+unstable = []
