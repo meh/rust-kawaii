@@ -13,27 +13,19 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 use std::rc::Rc;
-use std::fmt;
 
 use ansi_term::Style;
-use config::Config;
+use typemap::Key;
 
-#[derive(Debug)]
+/// Algebraic document.
+#[derive(PartialEq, Clone, Debug)]
 pub enum Document {
 	Empty,
 	Line,
 
-	String(String),
+	Raw(String),
 
-	With {
-		inner: Rc<Document>,
-		config: Config,
-	},
-
-	Cons {
-		left: Rc<Document>,
-		right: Rc<Document>
-	},
+	Sequence(Vec<Rc<Document>>),
 
 	Nest {
 		inner: Rc<Document>,
@@ -83,6 +75,17 @@ pub enum When {
 pub enum Break {
 	Flex,
 	Strict,
+	Maybe,
+}
+
+impl Default for Break {
+	fn default() -> Self {
+		Break::Maybe
+	}
+}
+
+impl Key for Break {
+	type Value = Self;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -106,11 +109,5 @@ impl Default for Document {
 impl Default for When {
 	fn default() -> When {
 		When::Always
-	}
-}
-
-impl fmt::Display for Document {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		::fmt::document(f, self)
 	}
 }

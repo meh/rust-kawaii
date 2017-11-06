@@ -12,6 +12,9 @@ keywords    = ["pretty", "kawaii", "print", "debug"]
 [dependencies]
 ansi_term = "0.10"
 typemap = "0.3"
+unicode-segmentation = "1"
+itertools = "0.7"
+term_size = "0.3"
 
 [features]
 unstable = []

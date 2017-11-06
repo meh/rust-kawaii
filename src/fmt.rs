@@ -12,10 +12,41 @@
 //
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
+use std::rc::Rc;
 use std::fmt;
 
-use document::{Document};
-use config::{Width, Config};
+use unicode_segmentation::UnicodeSegmentation;
+use term_size as terminal;
+use document::{Document, Indent, When, Break};
+use config::{Config, Width};
+
+/// Document with a configuration for printing.
+#[derive(Debug)]
+pub struct With {
+	config: Config,
+	document: Rc<Document>,
+}
+
+impl fmt::Display for Document {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		it(f, self, &State::default())
+	}
+}
+
+impl fmt::Display for With {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let mut state = State::default();
+
+		if let Some(&Width(width)) = self.config.get::<Width>() {
+			state.width = Some(width);
+		}
+		else if let Some((width, _)) = terminal::dimensions() {
+			state.width = Some(width);
+		}
+
+		it(f, &self.document, &state)
+	}
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Mode {
@@ -37,29 +68,29 @@ struct State {
 	width: Option<usize>,
 	mode: Mode,
 	indent: usize,
+	cursor: usize,
 }
 
-pub fn document(f: &mut fmt::Formatter, mut doc: &Document) -> fmt::Result {
-	let mut state = State {
-		width: None,
-		mode: Mode::Break,
-		indent: 0,
-	};
-
-	if let &Document::With { ref inner, ref config } = doc {
-		if let Some(&Width(width)) = config.get::<Width>() {
-			state.width = Some(width);
+impl Default for State {
+	fn default() -> Self {
+		State {
+			width: None,
+			mode: Mode::Flat,
+			indent: 0,
+			cursor: 0,
 		}
+	}
+}
 
-		doc = inner;
+fn it(f: &mut fmt::Formatter, doc: &Document, state: &State) -> fmt::Result {
+	#[inline(always)]
+	fn indent(f: &mut fmt::Formatter, n: usize) -> fmt::Result {
+		write!(f, "\n{:1$}", "", n)
 	}
 
-	it(f, doc, state)
-}
-
-fn it(f: &mut fmt::Formatter, doc: &Document, state: State) -> fmt::Result {
-	fn indent(f: &mut fmt::Formatter, n: usize) -> fmt::Result {
-		Err(fmt::Error)
+	#[inline(always)]
+	fn fits(width: usize, cursor: usize, doc: &Document) -> bool {
+		false
 	}
 
 	match *doc {
@@ -69,8 +100,31 @@ fn it(f: &mut fmt::Formatter, doc: &Document, state: State) -> fmt::Result {
 		Document::Line =>
 			indent(f, state.indent)?,
 
-		Document::String(ref string) =>
+		Document::Raw(ref string) =>
 			f.write_str(string)?,
+
+		Document::Sequence(ref values) => {
+			for value in values {
+				it(f, value, state)?;
+			}
+		}
+
+		Document::Nest { ref inner, indent, when } if when == When::Always || (when == When::Break && state.mode == Mode::Break) =>
+			it(f, inner, &State {
+				indent: match indent {
+					Indent::Cursor => state.indent,
+					Indent::Reset => 0,
+					Indent::Value(size) => state.indent + size,
+				},
+
+				.. *state })?,
+
+		Document::Nest { ref inner, .. } =>
+			it(f, inner, state)?,
+
+		Document::Break { ref value, mode: Break::Flex } => {
+			let cursor = state.cursor + value.len();
+		}
 
 		Document::Style { ref inner, style } => {
 			write!(f, "{}", style.prefix())?;
@@ -78,8 +132,7 @@ fn it(f: &mut fmt::Formatter, doc: &Document, state: State) -> fmt::Result {
 			write!(f, "{}", style.suffix())?;
 		}
 
-		ref doc =>
-			unimplemented!("{:?}", doc)
+		_ => ()
 	}
 
 	Ok(())

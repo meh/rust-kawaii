@@ -16,6 +16,9 @@
 	feature(specialization, core_intrinsics))]
 
 extern crate typemap;
+extern crate unicode_segmentation;
+extern crate itertools;
+extern crate term_size;
 
 pub extern crate ansi_term;
 pub use ansi_term::{Color, Style};
@@ -36,14 +39,23 @@ pub use util::*;
 
 use std::rc::Rc;
 
+pub fn default() -> Config {
+	Config::default()
+		.set(config::Syntax::default()
+			.set("unknown", Color::Fixed(8).normal())
+			.set("boolean", Color::Purple.normal())
+			.set("number", Color::Yellow.normal())
+			.set("string", Color::Green.normal()))
+}
+
 pub fn print<T: Kawaii>(value: T) {
 	println!("{}", inspect(value))
 }
 
 pub fn inspect<T: Kawaii>(value: T) -> Rc<Document> {
-	value.document(&Config::default()
-		.set(config::Syntax::default()
-			.set("string", Color::Green.normal())
-			.set("boolean", Color::Purple.normal())
-			.set("number", Color::Yellow.normal())))
+	value.document(&default())
+}
+
+pub fn debug<T: ::std::fmt::Debug>(value: &T) -> Rc<Document> {
+	default().debug(value)
 }

@@ -13,37 +13,16 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 use std::rc::Rc;
+use std::collections::{LinkedList, VecDeque, BinaryHeap};
+use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashSet, BTreeSet};
+use std::hash::Hash;
 
 use document::Document;
-use config::Config;
+use config::{Config, Base, Precision, Syntax, Separator};
 
 pub trait Kawaii {
 	fn document(&self, config: &Config) -> Rc<Document>;
-}
-
-#[cfg(feature = "unstable")]
-mod magic {
-	use std::rc::Rc;
-	use std::fmt;
-	use std::intrinsics;
-
-	use document::Document;
-	use config::Config;
-	use traits::Kawaii;
-
-	default impl<T: 'static> Kawaii for T {
-		fn document(&self, _: &Config) -> Rc<Document> {
-			use util::*;
-			string(unsafe { intrinsics::type_name::<T>() })
-		}
-	}
-
-	default impl<T: fmt::Debug> Kawaii for T {
-		fn document(&self, _: &Config) -> Rc<Document> {
-			use util::*;
-			string(format!("{:?}", self))
-		}
-	}
 }
 
 impl Kawaii for Rc<Document> {
@@ -52,32 +31,58 @@ impl Kawaii for Rc<Document> {
 	}
 }
 
+impl<'a, T: Kawaii + ?Sized> Kawaii for &'a T {
+	fn document(&self, c: &Config) -> Rc<Document> {
+		(*self).document(c)
+	}
+}
+
+#[cfg(feature = "unstable")]
+mod magic {
+	use std::rc::Rc;
+	use std::intrinsics;
+
+	use document::Document;
+	use config::{Config, Syntax};
+	use traits::Kawaii;
+
+	default impl<T: ?Sized> Kawaii for T {
+		fn document(&self, c: &Config) -> Rc<Document> {
+			let item = c.raw(unsafe { intrinsics::type_name::<T>() });
+
+			if let Some(style) = c.get::<Syntax>().and_then(|s| s.get("unknown")) {
+				c.style(item, *style)
+			}
+			else {
+				item
+			}
+		}
+	}
+}
+
 #[macro_export]
 macro_rules! integer {
 	($name:ty) => (
 		impl Kawaii for $name {
-			fn document(&self, config: &Config) -> Rc<Document> {
-				use config::{Base, Syntax};
-				use util::*;
-
-				let string = match config.get::<Base>().map(|b| *b).unwrap_or(Base::default()) {
+			fn document(&self, c: &Config) -> Rc<Document> {
+				let string = match c.get::<Base>().map(|b| *b).unwrap_or(Base::default()) {
 					Base::Binary =>
-						string(format!("{:b}", self)),
+						c.raw(format!("{:b}", self)),
 
 					Base::Octal =>
-						string(format!("{:o}", self)),
+						c.raw(format!("{:o}", self)),
 
 					Base::Decimal =>
-						string(format!("{}", self)),
+						c.raw(format!("{}", self)),
 
 					Base::Hexadecimal =>
-						string(format!("{:0X}", self)),
+						c.raw(format!("{:0X}", self)),
 				};
 
-				if let Some(syntax) = config.get::<Syntax>()
+				if let Some(style) = c.get::<Syntax>()
 					.and_then(|s| s.get("integer").or(s.get("number")))
 				{
-					style(string, *syntax)
+					c.style(string, *style)
 				}
 				else {
 					string
@@ -92,27 +97,22 @@ macro_rules! integer {
 	);
 }
 
-integer!(u8, i8, u16, i16, u32, i32, u64, i64);
-
 #[macro_export]
 macro_rules! float {
 	($name:ty) => (
 		impl Kawaii for $name {
-			fn document(&self, config: &Config) -> Rc<Document> {
-				use config::{Precision, Syntax};
-				use util::*;
-
-				let string = if let Some(&Precision(size)) = config.get::<Precision>() {
-					string(format!("{:.1$}", self, size))
+			fn document(&self, c: &Config) -> Rc<Document> {
+				let string = if let Some(&Precision(size)) = c.get::<Precision>() {
+					c.raw(format!("{:.1$}", self, size))
 				}
 				else {
-					string(format!("{}", self))
+					c.raw(format!("{}", self))
 				};
 
-				if let Some(syntax) = config.get::<Syntax>()
+				if let Some(style) = c.get::<Syntax>()
 					.and_then(|s| s.get("float").or(s.get("number")))
 				{
-					style(string, *syntax)
+					c.style(string, *style)
 				}
 				else {
 					string
@@ -127,32 +127,22 @@ macro_rules! float {
 	);
 }
 
-float!(f32, f64);
-
 #[macro_export]
 macro_rules! string {
 	($name:ty) => (
 		impl Kawaii for $name {
-			fn document(&self, config: &Config) -> Rc<Document> {
-				use config::Syntax;
-				use util::*;
+			fn document(&self, c: &Config) -> Rc<Document> {
+				let string: &str = self.as_ref();
+				let item = c.raw(format!("{:?}", string));
 
-				let string = string(format!("{:?}", self));
-
-				if let Some(syntax) = config.get::<Syntax>()
+				if let Some(style) = c.get::<Syntax>()
 					.and_then(|s| s.get("string"))
 				{
-					style(string, *syntax)
+					c.style(item, *style)
 				}
 				else {
-					string
+					item
 				}
-			}
-		}
-
-		impl<'a> Kawaii for &'a $name {
-			fn document(&self, config: &Config) -> Rc<Document> {
-				(*self).document(config)
 			}
 		}
 	);
@@ -163,18 +153,195 @@ macro_rules! string {
 	);
 }
 
+#[macro_export]
+macro_rules! list {
+	($name:ty; $($params:tt)+) => (
+		impl<$($params)*> $crate::Kawaii for $name {
+			fn document(&self, c: &$crate::Config) -> ::std::rc::Rc<$crate::Document> {
+				let $crate::config::Separator(separator) = c
+					.get::<$crate::config::Separator>()
+					.cloned().unwrap_or_default();
+
+				let (left, separator, right) = if let Some(style) = c
+					.get::<$crate::config::Syntax>()
+					.and_then(|s| s.get("list"))
+				{
+					(c.style(c.raw("["), *style),
+					 c.style(separator, *style),
+					 c.style(c.raw("]"), *style))
+				}
+				else {
+					(c.raw("["), separator, c.raw("]"))
+				};
+
+				c.sequence(&[left, c.iterator(self.iter(), separator), right])
+			}
+		}
+	);
+}
+
+#[macro_export]
+macro_rules! map {
+	($name:ty; $($params:tt)+) => (
+		impl<$($params)*> $crate::Kawaii for $name {
+			fn document(&self, c: &$crate::Config) -> Rc<$crate::Document> {
+				let $crate::config::Separator(separator) = c
+					.get::<$crate::config::Separator>()
+					.cloned().unwrap_or_default();
+
+				let (left, separator, right) = if let Some(style) = c
+					.get::<$crate::config::Syntax>()
+					.and_then(|s| s.get("map"))
+				{
+					(c.style(c.raw("%{"), *style),
+					 c.style(separator, *style),
+					 c.style(c.raw("}"), *style))
+				}
+				else {
+					(c.raw("%{"), separator, c.raw("}"))
+				};
+
+				let iter = self.iter().map(|(k, v)| {
+					let separator = if let Some(style) = c
+						.get::<$crate::config::Syntax>()
+						.and_then(|s| s.get("map"))
+					{
+						c.style(c.raw(" => "), *style)
+					}
+					else {
+						c.raw(" => ")
+					};
+
+					c.sequence(&[k.document(c), separator, v.document(c)])
+				});
+
+				c.sequence(&[left, c.iterator(iter, separator), right])
+			}
+		}
+	);
+}
+
+#[macro_export]
+macro_rules! set {
+	($name:ty; $($params:tt)+) => (
+		impl<$($params)*> Kawaii for $name {
+			fn document(&self, c: &$crate::Config) -> ::std::rc::Rc<$crate::Document> {
+				let $crate::config::Separator(separator) = c
+					.get::<$crate::config::Separator>()
+					.cloned().unwrap_or_default();
+
+				let (left, separator, right) = if let Some(style) = c
+					.get::<$crate::config::Syntax>()
+					.and_then(|s| s.get("list"))
+				{
+					(c.style(c.raw("#{"), *style),
+					 c.style(separator, *style),
+					 c.style(c.raw("}"), *style))
+				}
+				else {
+					(c.raw("#{"), separator, c.raw("}"))
+				};
+
+				c.sequence(&[left, c.iterator(self.iter(), separator), right])
+			}
+		}
+	);
+}
+
+macro_rules! array {
+	($size:tt) => (
+		list!([T; $size]; T: Kawaii);
+	);
+
+	($size:tt, $($rest:tt),*) => (
+		array!($size);
+		array!($($rest),*);
+	)
+}
+
+macro_rules! tuple {
+	() => ();
+
+	(($idx:tt => $typ:ident), $(($nidx:tt => $ntyp:ident),)* ) => {
+		impl<$typ, $( $ntyp ),*> Kawaii for ($typ, $($ntyp),*)
+			where $typ: Kawaii, $($ntyp: Kawaii),*
+		{
+			fn document(&self, c: &Config) -> Rc<Document> {
+				let parts: &[&Kawaii] = &[&self.$idx, $(&self.$nidx),*];
+
+				let Separator(separator) = c.get::<Separator>()
+					.cloned().unwrap_or_default();
+
+				let (left, separator, right) = if let Some(style) = c.get::<Syntax>()
+					.and_then(|s| s.get("tuple"))
+				{
+					(c.style(c.raw("("), *style),
+					 c.style(separator, *style),
+					 c.style(c.raw(")"), *style))
+				}
+				else {
+					(c.raw("("), separator, c.raw(")"))
+				};
+
+				c.sequence(&[left, c.iterator(parts.iter(), separator), right])
+			}
+		}
+
+	  tuple!($(($nidx => $ntyp),)*);
+	};
+}
+
+integer!(u8, i8, u16, i16, u32, i32, u64, i64);
+
+float!(f32, f64);
+
 string!(String, str);
 
-//#[macro_export]
-//macro_rules! list {
-//	($($params:tt)* ; $name:ty) => (
-//		impl<$($params)*> Kawaii for $name {
-//			fn document(&self, config: &Config) -> Rc<Document> {
-//				unimplemented!();
-//			}
-//		}
-//	);
-//}
-//
-//list!(T: Kawaii; Vec<T>);
-//list!('a, T: Kawaii; &'a [T]);
+array!( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9);
+array!(10, 11, 12, 13, 14, 15, 16, 17, 18, 19);
+array!(20, 21, 22, 23, 24, 25, 26, 27, 28, 29);
+array!(30, 31, 32, 33, 34, 35, 36, 37, 38, 39);
+array!(40, 41, 42, 43, 44, 45, 46, 47, 48, 49);
+array!(50, 51, 52, 53, 54, 55, 56, 57, 58, 59);
+array!(60, 61, 62, 63, 64);
+
+tuple!(
+	(25 => Z),
+	(24 => Y),
+	(23 => X),
+	(22 => W),
+	(21 => V),
+	(20 => U),
+	(19 => T),
+	(18 => S),
+	(17 => R),
+	(16 => Q),
+	(15 => P),
+	(14 => O),
+	(13 => N),
+	(12 => M),
+	(11 => L),
+	(10 => K),
+	(9  => J),
+	(8  => I),
+	(7  => H),
+	(6  => G),
+	(5  => F),
+	(4  => E),
+	(3  => D),
+	(2  => C),
+	(1  => B),
+	(0  => A),
+);
+
+list!(Vec<T>; T: Kawaii);
+list!(VecDeque<T>; T: Kawaii);
+list!(LinkedList<T>; T: Kawaii);
+list!(BinaryHeap<T>; T: Ord + Kawaii);
+list!([T]; T: Kawaii);
+
+map!(HashMap<K, V>; K: Eq + Hash + Kawaii, V: Kawaii);
+map!(BTreeMap<K, V>; K: Kawaii, V: Kawaii);
+
+set!(HashSet<T>; T: Eq + Hash + Kawaii);
+set!(BTreeSet<T>; T: Kawaii);

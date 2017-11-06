@@ -13,9 +13,11 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use typemap::{Key, DebugMap, DebugAny};
 use ansi_term::Style;
+use document::Document;
 
 #[derive(Debug)]
 pub struct Config(DebugMap);
@@ -35,6 +37,19 @@ impl Config {
 	pub fn get<T: Key<Value = T> + DebugAny>(&self) -> Option<&T> {
 		self.0.get::<T>()
 	}
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct Separator(pub Rc<Document>);
+
+impl Default for Separator {
+	fn default() -> Self {
+		Separator(Rc::new(Document::Raw(",".into())))
+	}
+}
+
+impl Key for Separator {
+	type Value = Self;
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
