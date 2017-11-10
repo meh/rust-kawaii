@@ -1,6 +1,6 @@
 [package]
-name    = "kawaii"
-version = "0.1.0-alpha"
+name    = "kawaii-derive"
+version = "0.1.0"
 
 authors = ["meh. <meh@schizofreni.co>"]
 license = "WTFPL"
@@ -9,13 +9,13 @@ description = "Better pretty printing."
 repository  = "https://github.com/meh/rust-kawaii"
 keywords    = ["pretty", "kawaii", "print", "debug"]
 
+[lib]
+proc-macro = true
+
 [dependencies]
+syn = "0.11"
+quote = "0.3"
 itertools = "0.7"
-typemap = "0.3"
-unicode-segmentation = "1"
 
 ansi_term = "0.10"
-term_size = "0.3"
-
-[dev-dependencies]
-kawaii-derive = { path = "derive" }
+nom = "3.2"

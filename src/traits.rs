@@ -37,29 +37,6 @@ impl<'a, T: Kawaii + ?Sized> Kawaii for &'a T {
 	}
 }
 
-#[cfg(feature = "unstable")]
-mod magic {
-	use std::rc::Rc;
-	use std::intrinsics;
-
-	use document::Document;
-	use config::{Config, Syntax};
-	use traits::Kawaii;
-
-	default impl<T: ?Sized> Kawaii for T {
-		fn document(&self, c: &Config) -> Rc<Document> {
-			let item = c.raw(unsafe { intrinsics::type_name::<T>() });
-
-			if let Some(style) = c.get::<Syntax>().and_then(|s| s.get("unknown")) {
-				c.style(item, *style)
-			}
-			else {
-				item
-			}
-		}
-	}
-}
-
 #[macro_export]
 macro_rules! integer {
 	($name:ty) => (

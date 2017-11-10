@@ -12,9 +12,6 @@
 //
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
-#![cfg_attr(feature = "unstable",
-	feature(specialization, core_intrinsics))]
-
 extern crate typemap;
 extern crate unicode_segmentation;
 extern crate itertools;
