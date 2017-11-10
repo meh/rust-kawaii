@@ -10,11 +10,15 @@ repository  = "https://github.com/meh/rust-kawaii"
 keywords    = ["pretty", "kawaii", "print", "debug"]
 
 [dependencies]
-ansi_term = "0.10"
+itertools = "0.7"
 typemap = "0.3"
 unicode-segmentation = "1"
-itertools = "0.7"
+
+ansi_term = "0.10"
 term_size = "0.3"
+
+[dev-dependencies]
+kawaii-derive = { path = "derive" }
 
 [features]
 unstable = []
