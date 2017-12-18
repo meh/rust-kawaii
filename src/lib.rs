@@ -12,9 +12,14 @@
 //
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
-extern crate typemap;
-extern crate unicode_segmentation;
+#![allow(unused)]
+
 extern crate itertools;
+extern crate unicode_segmentation;
+
+extern crate typemap;
+extern crate fnv;
+
 extern crate term_size;
 
 pub extern crate ansi_term;
@@ -31,6 +36,7 @@ pub use config::Config;
 pub mod document;
 pub use document::Document;
 
+#[macro_use]
 pub mod util;
 pub use util::*;
 
@@ -40,19 +46,26 @@ pub fn default() -> Config {
 	Config::default()
 		.set(config::Syntax::default()
 			.set("unknown", Color::Fixed(8).normal())
+			.set("debug", Color::Fixed(15).normal())
 			.set("boolean", Color::Purple.normal())
 			.set("number", Color::Yellow.normal())
 			.set("string", Color::Green.normal()))
 }
 
 pub fn print<T: Kawaii>(value: T) {
-	println!("{}", inspect(value))
+	eprintln!("{:#?}", inspect(&value));
+	println!("{}", inspect(&value))
+}
+
+pub fn print_with<T: Kawaii>(value: T, config: &Config) {
+	eprintln!("{:#?}", inspect_with(&value, config));
+	println!("{}", inspect_with(&value, config))
 }
 
 pub fn inspect<T: Kawaii>(value: T) -> Rc<Document> {
 	value.document(&default())
 }
 
-pub fn debug<T: ::std::fmt::Debug>(value: &T) -> Rc<Document> {
-	default().debug(value)
+pub fn inspect_with<T: Kawaii>(value: T, config: &Config) -> Rc<Document> {
+	value.document(config)
 }

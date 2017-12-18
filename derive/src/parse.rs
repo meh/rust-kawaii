@@ -18,6 +18,10 @@ pub fn string(lit: &syn::Lit) -> error::Result<&str> {
 	}
 }
 
+pub fn path(lit: &syn::Lit) -> error::Result<syn::Path> {
+	Ok(syn::parse_path(string(lit)?)?)
+}
+
 pub fn attributes(attr: &syn::Attribute) -> Option<&[syn::NestedMetaItem]> {
 	match attr.value {
 		List(ref name, ref items) if name == "kawaii" =>

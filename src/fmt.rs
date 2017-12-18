@@ -83,12 +83,10 @@ impl Default for State {
 }
 
 fn it(f: &mut fmt::Formatter, doc: &Document, state: &State) -> fmt::Result {
-	#[inline(always)]
 	fn indent(f: &mut fmt::Formatter, n: usize) -> fmt::Result {
 		write!(f, "\n{:1$}", "", n)
 	}
 
-	#[inline(always)]
 	fn fits(width: usize, cursor: usize, doc: &Document) -> bool {
 		false
 	}
@@ -100,7 +98,7 @@ fn it(f: &mut fmt::Formatter, doc: &Document, state: &State) -> fmt::Result {
 		Document::Line =>
 			indent(f, state.indent)?,
 
-		Document::Raw(ref string) =>
+		Document::Text(ref string) =>
 			f.write_str(string)?,
 
 		Document::Sequence(ref values) => {
@@ -122,17 +120,13 @@ fn it(f: &mut fmt::Formatter, doc: &Document, state: &State) -> fmt::Result {
 		Document::Nest { ref inner, .. } =>
 			it(f, inner, state)?,
 
-		Document::Break { ref value, mode: Break::Flex } => {
-			let cursor = state.cursor + value.len();
-		}
-
-		Document::Style { ref inner, style } => {
+		Document::Style { ref inner, ref style } => {
 			write!(f, "{}", style.prefix())?;
 			it(f, inner, state)?;
 			write!(f, "{}", style.suffix())?;
 		}
 
-		_ => ()
+		_ => unimplemented!()
 	}
 
 	Ok(())

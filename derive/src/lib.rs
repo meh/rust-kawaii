@@ -37,24 +37,17 @@ fn derive_kawaii(input: &syn::DeriveInput) -> error::Result<quote::Tokens> {
 	let container = ast::Container::parse(input)?;
 	let (impl_generics, ty_generics, where_clause) =
 		container.generics.split_for_impl();
-	let unstable = if cfg!(unstable) {
-		quote! { default }
-	}
-	else {
-		quote! { }
-	};
-
-	println!("{:#?}", container);
 
 	Ok(quote! {
 		#[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 		const #dummy: () = {
 			extern crate kawaii;
 			use std::rc::Rc;
-			use kawaii::{Kawaii, Config, Document, util};
+			use kawaii::{Kawaii, Config, Document, Style, Color};
+			use kawaii::document::{Group};
 
 			#[automatically_derived]
-			#unstable impl #impl_generics Kawaii for #ident #ty_generics #where_clause {
+			impl #impl_generics Kawaii for #ident #ty_generics #where_clause {
 				fn document(&self, c: &Config) -> Rc<Document> {
 					#container
 				}

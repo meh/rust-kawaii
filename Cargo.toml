@@ -11,8 +11,10 @@ keywords    = ["pretty", "kawaii", "print", "debug"]
 
 [dependencies]
 itertools = "0.7"
-typemap = "0.3"
 unicode-segmentation = "1"
+
+typemap = "0.3"
+fnv = "1.0"
 
 ansi_term = "0.10"
 term_size = "0.3"

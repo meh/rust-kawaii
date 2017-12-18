@@ -12,8 +12,8 @@ pub struct Container<'a> {
 
 #[derive(Debug)]
 pub enum Body<'a> {
-	Enum(Vec<Variant<'a>>),
 	Struct(Style, Vec<Field<'a>>),
+	Enum(Vec<Variant<'a>>),
 }
 
 #[derive(Debug)]

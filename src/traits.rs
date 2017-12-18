@@ -16,7 +16,7 @@ use std::rc::Rc;
 use std::collections::{LinkedList, VecDeque, BinaryHeap};
 use std::collections::{HashMap, BTreeMap};
 use std::collections::{HashSet, BTreeSet};
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
 use document::Document;
 use config::{Config, Base, Precision, Syntax, Separator};
@@ -42,24 +42,24 @@ macro_rules! integer {
 	($name:ty) => (
 		impl Kawaii for $name {
 			fn document(&self, c: &Config) -> Rc<Document> {
-				let string = match c.get::<Base>().map(|b| *b).unwrap_or(Base::default()) {
+				let string = match c.get::<Base>().cloned().unwrap_or(Base::default()) {
 					Base::Binary =>
-						c.raw(format!("{:b}", self)),
+						c.text(format!("{:b}", self)),
 
 					Base::Octal =>
-						c.raw(format!("{:o}", self)),
+						c.text(format!("{:o}", self)),
 
 					Base::Decimal =>
-						c.raw(format!("{}", self)),
+						c.text(format!("{}", self)),
 
 					Base::Hexadecimal =>
-						c.raw(format!("{:0X}", self)),
+						c.text(format!("{:0X}", self)),
 				};
 
 				if let Some(style) = c.get::<Syntax>()
 					.and_then(|s| s.get("integer").or(s.get("number")))
 				{
-					c.style(string, *style)
+					c.style(string, Rc::clone(style))
 				}
 				else {
 					string
@@ -80,16 +80,16 @@ macro_rules! float {
 		impl Kawaii for $name {
 			fn document(&self, c: &Config) -> Rc<Document> {
 				let string = if let Some(&Precision(size)) = c.get::<Precision>() {
-					c.raw(format!("{:.1$}", self, size))
+					c.text(format!("{:.1$}", self, size))
 				}
 				else {
-					c.raw(format!("{}", self))
+					c.text(format!("{}", self))
 				};
 
 				if let Some(style) = c.get::<Syntax>()
 					.and_then(|s| s.get("float").or(s.get("number")))
 				{
-					c.style(string, *style)
+					c.style(string, Rc::clone(style))
 				}
 				else {
 					string
@@ -110,12 +110,12 @@ macro_rules! string {
 		impl Kawaii for $name {
 			fn document(&self, c: &Config) -> Rc<Document> {
 				let string: &str = self.as_ref();
-				let item = c.raw(format!("{:?}", string));
+				let item = c.text(format!("{:?}", string));
 
 				if let Some(style) = c.get::<Syntax>()
 					.and_then(|s| s.get("string"))
 				{
-					c.style(item, *style)
+					c.style(item, Rc::clone(style))
 				}
 				else {
 					item
@@ -143,12 +143,12 @@ macro_rules! list {
 					.get::<$crate::config::Syntax>()
 					.and_then(|s| s.get("list"))
 				{
-					(c.style(c.raw("["), *style),
-					 c.style(separator, *style),
-					 c.style(c.raw("]"), *style))
+					(c.style(c.text("["), Rc::clone(style)),
+					 c.style(separator, Rc::clone(style)),
+					 c.style(c.text("]"), Rc::clone(style)))
 				}
 				else {
-					(c.raw("["), separator, c.raw("]"))
+					(c.text("["), separator, c.text("]"))
 				};
 
 				c.sequence(&[left, c.iterator(self.iter(), separator), right])
@@ -170,12 +170,12 @@ macro_rules! map {
 					.get::<$crate::config::Syntax>()
 					.and_then(|s| s.get("map"))
 				{
-					(c.style(c.raw("%{"), *style),
-					 c.style(separator, *style),
-					 c.style(c.raw("}"), *style))
+					(c.style(c.text("%{"), Rc::clone(style)),
+					 c.style(separator, Rc::clone(style)),
+					 c.style(c.text("}"), Rc::clone(style)))
 				}
 				else {
-					(c.raw("%{"), separator, c.raw("}"))
+					(c.text("%{"), separator, c.text("}"))
 				};
 
 				let iter = self.iter().map(|(k, v)| {
@@ -183,10 +183,10 @@ macro_rules! map {
 						.get::<$crate::config::Syntax>()
 						.and_then(|s| s.get("map"))
 					{
-						c.style(c.raw(" => "), *style)
+						c.style(c.text(" => "), Rc::clone(style))
 					}
 					else {
-						c.raw(" => ")
+						c.text(" => ")
 					};
 
 					c.sequence(&[k.document(c), separator, v.document(c)])
@@ -211,12 +211,12 @@ macro_rules! set {
 					.get::<$crate::config::Syntax>()
 					.and_then(|s| s.get("list"))
 				{
-					(c.style(c.raw("#{"), *style),
-					 c.style(separator, *style),
-					 c.style(c.raw("}"), *style))
+					(c.style(c.text("#{"), Rc::clone(style)),
+					 c.style(separator, Rc::clone(style)),
+					 c.style(c.text("}"), Rc::clone(style)))
 				}
 				else {
-					(c.raw("#{"), separator, c.raw("}"))
+					(c.text("#{"), separator, c.text("}"))
 				};
 
 				c.sequence(&[left, c.iterator(self.iter(), separator), right])
@@ -252,12 +252,12 @@ macro_rules! tuple {
 				let (left, separator, right) = if let Some(style) = c.get::<Syntax>()
 					.and_then(|s| s.get("tuple"))
 				{
-					(c.style(c.raw("("), *style),
-					 c.style(separator, *style),
-					 c.style(c.raw(")"), *style))
+					(c.style(c.text("("), Rc::clone(style)),
+					 c.style(separator, Rc::clone(style)),
+					 c.style(c.text(")"), Rc::clone(style)))
 				}
 				else {
-					(c.raw("("), separator, c.raw(")"))
+					(c.text("("), separator, c.text(")"))
 				};
 
 				c.sequence(&[left, c.iterator(parts.iter(), separator), right])
@@ -317,8 +317,8 @@ list!(LinkedList<T>; T: Kawaii);
 list!(BinaryHeap<T>; T: Ord + Kawaii);
 list!([T]; T: Kawaii);
 
-map!(HashMap<K, V>; K: Eq + Hash + Kawaii, V: Kawaii);
+map!(HashMap<K, V, S>; K: Eq + Hash + Kawaii, V: Kawaii, S: BuildHasher);
 map!(BTreeMap<K, V>; K: Kawaii, V: Kawaii);
 
-set!(HashSet<T>; T: Eq + Hash + Kawaii);
+set!(HashSet<T, S>; T: Eq + Hash + Kawaii, S: BuildHasher);
 set!(BTreeSet<T>; T: Kawaii);

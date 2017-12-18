@@ -23,7 +23,7 @@ pub enum Document {
 	Empty,
 	Line,
 
-	Raw(String),
+	Text(String),
 
 	Sequence(Vec<Rc<Document>>),
 
@@ -44,17 +44,9 @@ pub enum Document {
 		mode: Group,
 	},
 
-	Fits {
-		inner: Rc<Document>,
-		mode: Fits,
-	},
-
-	Force(Rc<Document>),
-	Collapse(usize),
-
 	Style {
 		inner: Rc<Document>,
-		style: Style,
+		style: Rc<Style>,
 	}
 }
 
@@ -92,12 +84,6 @@ impl Key for Break {
 pub enum Group {
 	Inherit,
 	This,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum Fits {
-	Enabled,
-	Disabled,
 }
 
 impl Default for Document {

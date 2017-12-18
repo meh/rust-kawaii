@@ -19,23 +19,45 @@ use ansi_term::Style;
 use itertools::Itertools;
 use traits::Kawaii;
 use config::{self, Config, Syntax, Separator};
-use document::{Document, Indent, When, Break};
+use document::{Document, Indent, When, Break, Group};
 
 impl Config {
 	/// An empty document.
 	pub fn empty(&self) -> Rc<Document> {
-		empty()
+		Rc::new(Document::Empty)
+	}
+
+	/// Line document.
+	pub fn line(&self) -> Rc<Document> {
+		Rc::new(Document::Line)
 	}
 
 	/// A string document.
-	pub fn raw<T: Into<String>>(&self, value: T) -> Rc<Document> {
-		raw(value)
+	pub fn text<T: Into<String>>(&self, value: T) -> Rc<Document> {
+		Rc::new(Document::Text(value.into()))
+	}
+
+	/// Breaking point.
+	pub fn break_with<T: Into<String>>(&self, value: T, mode: Break) -> Rc<Document> {
+		Rc::new(Document::Break {
+			value: value.into(),
+			mode: mode,
+		})
 	}
 
 	/// Concatenate multiple documents.
 	pub fn sequence<K: Kawaii, I: IntoIterator<Item = K>>(&self, values: I) -> Rc<Document> {
 		Rc::new(Document::Sequence(values.into_iter()
 			.map(|k| k.document(self)).collect()))
+	}
+
+	/// Create a new named group.
+	pub fn group<K: Kawaii, N: AsRef<str>>(&self, name: N, mode: Group, value: K) -> Rc<Document> {
+		Rc::new(Document::Group {
+			name: name.as_ref().into(),
+			inner: value.document(self),
+			mode: mode,
+		})
 	}
 
 	/// Nests the given document.
@@ -48,10 +70,10 @@ impl Config {
 	}
 
 	/// Style a document.
-	pub fn style<K: Kawaii>(&self, value: K, style: Style) -> Rc<Document> {
+	pub fn style<K: Kawaii, S: Into<Rc<Style>>>(&self, value: K, style: S) -> Rc<Document> {
 		Rc::new(Document::Style {
 			inner: value.document(self),
-			style: style,
+			style: style.into(),
 		})
 	}
 
@@ -69,50 +91,15 @@ impl Config {
 	///
 	/// TODO(meh): parse the output and pretty print it
 	pub fn debug<T: fmt::Debug>(&self, value: &T) -> Rc<Document> {
-		let item = self.raw(format!("{:?}", value));
+		let item = self.text(format!("{:?}", value));
 
 		if let Some(style) = self.get::<Syntax>().and_then(|s| s.get("debug")) {
-			self.style(item, *style)
+			self.style(item, Rc::clone(style))
 		}
 		else {
 			item
 		}
 	}
-}
-
-/// An empty document.
-pub fn empty() -> Rc<Document> {
-	Rc::new(Document::Empty)
-}
-
-/// A string document.
-pub fn raw<T: Into<String>>(value: T) -> Rc<Document> {
-	Rc::new(Document::Raw(value.into()))
-}
-
-/// Concatenate multiple documents.
-pub fn sequence<K: Kawaii, I: IntoIterator<Item = K>>(values: I) -> Rc<Document> {
-	Config::default().sequence(values)
-}
-
-/// Style a document.
-pub fn style<K: Kawaii>(value: K, style: Style) -> Rc<Document> {
-	Config::default().style(value, style)
-}
-
-/// Nests the given document.
-pub fn nest<K: Kawaii>(value: K, indent: Indent, when: When) -> Rc<Document> {
-	Config::default().nest(value, indent, when)
-}
-
-/// Creates a document out of an iterator.
-pub fn iterator<S: Kawaii, K: Kawaii, T: IntoIterator<Item = K>>(values: T, separator: S) -> Rc<Document> {
-	Config::default().iterator(values, separator)
-}
-
-/// Creates a debug document.
-pub fn debug<T: fmt::Debug>(value: &T) -> Rc<Document> {
-	Config::default().debug(value)
 }
 
 #[cfg(test)]
@@ -124,21 +111,27 @@ mod tests {
 
 	#[test]
 	fn empty() {
-		assert_eq!(kawaii::empty(), Rc::new(Document::Empty));
+		let c = Config::default();
+
+		assert_eq!(c.empty(), Rc::new(Document::Empty));
 	}
 
 	#[test]
-	fn string() {
-		assert_eq!(kawaii::raw("foo"),
-			Rc::new(Document::Raw("foo".into())));
+	fn text() {
+		let c = Config::default();
+
+		assert_eq!(c.text("foo"),
+			Rc::new(Document::Text("foo".into())));
 	}
 
 	#[test]
 	fn sequence() {
-		assert_eq!(kawaii::sequence(&[kawaii::raw("foo"), kawaii::raw("bar")]),
+		let c = Config::default();
+
+		assert_eq!(kawaii::sequence(&[c.text("foo"), c.text("bar")]),
 			Rc::new(Document::Sequence(vec![
-				Rc::new(Document::Raw("foo".into())),
-				Rc::new(Document::Raw("bar".into())),
+				Rc::new(Document::Text("foo".into())),
+				Rc::new(Document::Text("bar".into())),
 			])));
 	}
 }

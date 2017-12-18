@@ -10,20 +10,27 @@ use parse;
 
 #[derive(Default, Debug)]
 pub struct Container {
-	style: Option<Style>,
+	pub style: Option<Style>,
 }
 
 #[derive(Default, Debug)]
 pub struct Field {
-	style: Option<Style>,
-	ignore: bool,
-	debug: bool,
-	unknown: bool,
+	pub style: Option<Style>,
+	pub like: Option<Like>,
+	pub when: Option<syn::Path>,
+	pub with: Option<syn::Path>,
+}
+
+#[derive(Debug)]
+pub enum Like {
+	Unknown,
+	Debug,
+	Iterator,
 }
 
 #[derive(Default, Debug)]
 pub struct Variant {
-	style: Option<Style>,
+	pub style: Option<Style>,
 }
 
 impl Container {
@@ -62,19 +69,31 @@ impl Field {
 					field.style = Some(parse::style(parse::string(lit)?)?);
 				}
 
+				// #[kawaii(like = "...")]
+				MetaItem(NameValue(ref name, ref lit)) if name == "like" => {
+					field.like = Some(match parse::string(lit)? {
+						"unknown"  => Like::Unknown,
+						"debug"    => Like::Debug,
+						"iterator" => Like::Iterator,
+
+						name =>
+							return Err(format!("unknown kawaii field attribute: like = {:?}", name).into())
+					})
+				}
+
+				// #[kawaii(when = "...")]
+				MetaItem(NameValue(ref name, ref lit)) if name == "when" => {
+					field.when = Some(parse::path(lit)?);
+				}
+
+				// #[kawaii(with = "...")]
+				MetaItem(NameValue(ref name, ref lit)) if name == "with" => {
+					field.with = Some(parse::path(lit)?);
+				}
+
 				// #[kawaii(ignore)]
 				MetaItem(Word(ref name)) if name == "ignore" => {
 					field.ignore = true;
-				}
-
-				// #[kawaii(debug)]
-				MetaItem(Word(ref name)) if name == "debug" => {
-					field.debug = true;
-				}
-
-				// #[kawaii(unknown)]
-				MetaItem(Word(ref name)) if name == "unknown" => {
-					field.unknown = true;
 				}
 
 				MetaItem(ref item) => {
